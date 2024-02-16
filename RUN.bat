@@ -1,0 +1,1 @@
+start pythonw f1Predictions.py
