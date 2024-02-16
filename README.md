@@ -3,7 +3,7 @@ This is a small program written in python that can be used to check how good you
 for the graphics and [requests](https://requests.readthedocs.io/en/latest/) to collect the standings data from the [official driver standings](https://www.formula1.com/en/results.html/2023/drivers.html).
 
 ## Installation
-- First, clone this project or download the source file .zip from the releases and extract it wherever you like on your computer.
+- First, clone this project or download the source code .zip (or .tar.gz) file from the releases and extract it wherever you like on your computer.
 - If you do not have have python installed on your computer, you will need to download and install it from [here](https://www.python.org/downloads/) before continuing. *Remember* when installing python it
   is important to check the box in the installer to add python to your computer's PATH.
 - This program relies on the raylib and request libraries. These can be installed through pip, the file **install_dependencies.bat** will do this for you, just double click it, if the libraries install successfully
