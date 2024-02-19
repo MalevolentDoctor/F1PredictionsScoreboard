@@ -128,10 +128,12 @@ def analyse():
     # Set the default to the alphabetical order
     for k in drivers:
         standings.append(k)
+
+    print(driver_indices)
     
     # Update with the points order
     c = 0
-    for k in points:
+    for k in driver_indices:
         standings[c] = k
         c += 1
 
