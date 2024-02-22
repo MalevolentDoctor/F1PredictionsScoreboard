@@ -1,9 +1,26 @@
 import requests
 from pyray import *
 
-url = 'https://www.formula1.com/en/results.html/2024/drivers.html'
+url = 'https://www.formula1.com/en/results.html/2023/drivers.html'
 
-drivers = {
+driver = {
+    "initial":      "NUL",
+    "name":         "No Name",
+    "search_name":  "desktop>NUL<",
+    "search_index": 0,
+    "points":       0,
+    "position":     0
+}
+
+guess = {
+    "name":     "No Name",
+    "guess":    [],
+    "score":    0
+
+}
+
+# Define drivers names
+drivers_names = {
     "ALB": "Alex Albon",
     "ALO": "Fernando Alonso",
     "BOT": "Valtteri Bottas",
@@ -25,16 +42,13 @@ drivers = {
     "VER": "Max Verstappen",
     "ZHO": "Zhou Guanyu"
 }
-points = {}
-standings = []
 
-guesses = {}
-
-scores = {}
+drivers = []
+guesses = []
 
 def main():
     global logo
-    init_window(500, 850, "F1 Predictions 2024")
+    init_window(500, 900, "F1 Predictions 2024")
 
     program_state = "starting"
 
@@ -50,12 +64,17 @@ def main():
         if program_state == "running":
             drawMain()
 
+        if program_state == "connection_error":
+            drawConnectionError()
+
         end_drawing()
 
         if program_state == "starting":
             success = initialise()
+
             if success == -1:
                 program_state = "connection_error"
+
             elif success == 0:
                 # Load assets
                 logo_img = load_image("resources/f1logo.png")
@@ -63,7 +82,7 @@ def main():
                 unload_image(logo_img)
 
                 loadGuesses()
-                analyse()
+                getDriverData()
                 computeScores()
 
                 # Switch program state
@@ -81,37 +100,80 @@ def initialise():
     
     return 0
 
-def analyse():
-    global f1data, drivers, standings, points, guesses
+def loadGuesses():
+    global guesses, guess, drivers_names, driver
 
-    # get the initial in the form (desktop">VER<)
-    driver_names_ext = {}
-    for key in drivers:
-        driver_names_ext[key] = 'desktop">' + key + "<"
+    # Load data from file
+    f = open("resources/guesses.ini")
 
-    # loop through the HTML code to find where each of the drivers are
-    driver_indices = {}
+    for L in f:
+        # Split comma separated values
+        vals = L.split(",")
+
+        # Get the name of the guess from the first element in the array
+        guess_name = vals[0].strip()
+
+        # Clean up the rest of the values in the array, the initials of the drivers
+        guess_initials = vals[1::]
+        for i,v in enumerate(guess_initials):
+            guess_initials[i] = v.strip()
+
+        # Create the guess structure
+        g = guess.copy()
+        g["name"] = guess_name
+        drivers = []
+
+        # Get the driver data for the guess
+        for k in drivers_names:
+            d = driver.copy()
+            d["initial"] = k
+            d["name"] = drivers_names[k]
+            d["position"] = guess_initials.index(k)
+            drivers.append(d)
+
+        g["guess"] = drivers
+
+        # Add the guess to the global array
+        guesses.append(g)
+
+
+def getDriverData():
+    global f1data, drivers, drivers_names, driver
+
+    # Initialise 'drivers' array
+    p = 1
+    for k in drivers_names:
+        d = driver.copy()
+        d["name"] = drivers_names[k]
+        d["initial"] = k
+        d["search_name"] = 'desktop">' + k + "<"
+        d["position"] = p
+        drivers.append(d)
+        p += 1
+
+
+    # Loop through the HTML code to find where each of the drivers are
     i = 0
+    p = 1
     for _ in f1data.text:
         name = f1data.text[i:i + 13]
         
-        for k in driver_names_ext:
-            if driver_names_ext[k] == name:
-                driver_indices[k] = i + 9
+        for d in drivers:
+            if d["search_name"] == name:
+                d["search_index"] = i + 9
+                d["position"] = p
+                p += 1
+
         
         i = i + 1
     
-    # get the number of points each driver has
-    for k in drivers:
-        if k not in driver_indices.keys():
-            points[k] = 0
-            continue
+    # Get the number of points each driver has
+    for d in drivers:
 
-        if driver_indices[k] == 0:
-            points[k] = 0
+        if d["search_index"] == 0:
             continue
         
-        ind = driver_indices[k]
+        ind = d["search_index"]
         while f1data.text[ind:ind + 18] != 'class="dark bold">':
             ind += 1
         
@@ -120,22 +182,11 @@ def analyse():
         for j in [3,2,1]:
             if cont == True:
                 continue
+
             if f1data.text[ind:ind+j].isnumeric():
-                points[k] = int(f1data.text[ind:ind+j])
+                d["points"] = int(f1data.text[ind:ind+j])
                 cont = True
 
-    # Set the drivers standings
-    # Set the default to the alphabetical order
-    for k in drivers:
-        standings.append(k)
-
-    print(driver_indices)
-    
-    # Update with the points order
-    c = 0
-    for k in driver_indices:
-        standings[c] = k
-        c += 1
 
 def drawLoading():
     draw_rectangle(0, 0, get_screen_width(), get_screen_height(), DARKGRAY)
@@ -144,8 +195,16 @@ def drawLoading():
     loading_len = measure_text(loading_msg, loading_font_size)
     draw_text(loading_msg, int(get_screen_width()/2 - loading_len/2), int(get_screen_height()/2 - 50), loading_font_size, RAYWHITE)
 
+def drawConnectionError():
+    draw_rectangle(0, 0, get_screen_width(), get_screen_height(), DARKGRAY)
+    loading_msg = "Connection Error"
+    loading_font_size = 32
+    loading_len = measure_text(loading_msg, loading_font_size)
+    draw_text(loading_msg, int(get_screen_width()/2 - loading_len/2), int(get_screen_height()/2 - 50), loading_font_size, RED)
+
+
 def drawMain():
-    global logo, standings, drivers, points, scores
+    global logo, drivers, scores
 
     # Background
     draw_rectangle(0, 0, get_screen_width(), get_screen_height(), BLACK)
@@ -178,20 +237,19 @@ def drawMain():
     standings_points_offset_x = 280
 
     offline_colour = [20, 0, 0, 255]
-    c = 0
-    for i in standings:
+    for d in drivers:
+        c = d["position"] - 1
         y = standings_table_offset_y + c*(standings_table_text_size + standings_table_spacing)
         if c%2 == 0:
             draw_rectangle(0, y - int(standings_table_spacing/2), get_screen_width(), standings_table_text_size + standings_table_spacing, offline_colour)
 
-        c += 1
-        draw_text(str(c), standings_table_offset_x + standings_number_offset_x, y, standings_table_text_size, GRAY)
-        draw_text(drivers[i], standings_table_offset_x + standings_name_offset_x, y, standings_table_text_size, LIGHTGRAY)
-        draw_text(str(points[i]), standings_table_offset_x + standings_points_offset_x, y, standings_table_text_size, GRAY)
+        draw_text(str(d["position"]), standings_table_offset_x + standings_number_offset_x, y, standings_table_text_size, GRAY)
+        draw_text(d["name"], standings_table_offset_x + standings_name_offset_x, y, standings_table_text_size, LIGHTGRAY)
+        draw_text(str(d["points"]), standings_table_offset_x + standings_points_offset_x, y, standings_table_text_size, GRAY)
 
     # Guesses Header
     guesses_table_spacing = 5
-    guesses_table_offset_y = y + standings_table_text_size + standings_table_spacing + 70
+    guesses_table_offset_y = y + standings_table_text_size + standings_table_spacing + 100
     standings_table_offset_x = 80
 
     guesses_title_text = "Current Score"
@@ -206,52 +264,30 @@ def drawMain():
     offline_colour = [20, 0, 0, 255]
 
     c = 0
-    for k in scores:
+    for k in guesses:
         y = guesses_table_offset_y + c * (guesses_table_text_size + guesses_table_spacing)
         if c%2 == 0:
             draw_rectangle(0, y - int(guesses_table_spacing/2), get_screen_width(), guesses_table_text_size + guesses_table_spacing, offline_colour)
 
-        draw_text(k, standings_table_offset_x + guesses_name_offset_x, y, guesses_table_text_size, GRAY)
-        draw_text("{:5.2f}".format(scores[k]), standings_table_offset_x + guesses_points_offset_x, y, guesses_table_text_size, GRAY)
+        draw_text(k["name"], standings_table_offset_x + guesses_name_offset_x, y, guesses_table_text_size, GRAY)
+        draw_text("{:5.2f}".format(k["score"]), standings_table_offset_x + guesses_points_offset_x, y, guesses_table_text_size, GRAY)
         c += 1
 
 
-def loadGuesses():
-    global guesses
-    f = open("resources/guesses.ini")
-    for L in f:
-        vals = L.split(",")
-        k = vals[0].strip()
-        arr = vals[1::]
-        for i,v in enumerate(arr):
-            arr[i] = v.strip()
-        
-        guesses[k] = arr
-
-
 def computeScores():
-    global guesses, standings
-    for k in guesses:
-        scores[k] = score(standings, guesses[k])
+    global guesses
 
-def getDifferences(standings, guess):
-    differences = []
-    cs = 0
-    for s in standings:
-        cg = 0
-        for g in guess:
-            if g == s:
-                differences.append(abs(cs - cg))
-            cg += 1
-        cs += 1
-    return differences
+    for guess in guesses:
+        guess["score"] = score(guess["guess"])
 
+def score(guess):
+    global drivers
 
-def score(standings, guess):
     a = 0
-    diff = getDifferences(standings, guess)
-    for i in range(20):
-        a += abs(diff[i])**2/25
+    for actual in drivers:
+        for g in guess:
+            if (actual["initial"] == g["initial"]):
+                a += abs(actual["position"] - g["position"])**2/25
         
     b = 100 - a
     return b
